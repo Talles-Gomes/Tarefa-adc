@@ -5,17 +5,42 @@
 #include "hardware/pwm.h"     
 #include "hardware/i2c.h"
 #include "inc/ssd1306.h"
+#include "hardware/timer.h"
 
 #define LED_R 13 
 #define LED_B 12 
 #define LED_G 11  
 #define margem 250
+#define botA 5
+#define botJ 22
 
 #define I2C_PORT i2c1
 #define I2C_SDA 14
 #define I2C_SCL 15
-#define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 64
+bool hab = true;
+uint16_t vrx_value = 2048;
+uint16_t vry_value = 2048;
+
+static void gpio_irq_handler(uint gpio,uint32_t events);
+static volatile uint32_t last_time = 0;
+
+void gpio_irq_handler(uint gpio,uint32_t events)
+    {
+        uint32_t current_time = to_us_since_boot(get_absolute_time());
+        if(current_time - last_time > 200000) // 200 ms de debouncing
+        {
+            last_time = current_time;
+            if(gpio == 5){
+                hab = !hab;
+                gpio_put(LED_R, false);
+                gpio_put(LED_B, false);
+            }if (gpio == 22){
+                gpio_put(LED_G, !gpio_get(LED_G));
+                    
+            }
+        }
+
+    }
 
 ssd1306_t oled;
 const uint16_t WRAP_PERIOD = 62500; //valor máximo do contador - WRAP
@@ -49,35 +74,50 @@ int main() {
     int box_x = 60 ;
     int box_y = 28;
 
+    gpio_init(botA);
+    gpio_set_dir(botA,GPIO_IN);
+    gpio_pull_up(botA);
+
+    gpio_init(botJ);
+    gpio_set_dir(botJ,GPIO_IN);
+    gpio_pull_up(botJ);
+
+    gpio_set_irq_enabled_with_callback(botA,GPIO_IRQ_EDGE_FALL,true, &gpio_irq_handler);
+    gpio_set_irq_enabled_with_callback(botJ,GPIO_IRQ_EDGE_FALL,true, &gpio_irq_handler);
+
     while (true) {
 
-
+        
         adc_select_input(1);  
-        uint16_t vrx_value = adc_read(); 
+        vrx_value = adc_read();
+        if(hab){ 
         if (abs((int)vrx_value - 2048) > margem){
         pwm_set_gpio_level(LED_R, abs((int)vrx_value - 2048)); 
         }else
         pwm_set_gpio_level(LED_R, 0); 
-
+        }
         adc_select_input(0);  
-        uint16_t vry_value = adc_read(); 
+        vry_value = adc_read();
+        if(hab){ 
         if (abs((int)vry_value - 2048) > margem){
         pwm_set_gpio_level(LED_B, abs((int)vry_value - 2048)); 
         }else
         pwm_set_gpio_level(LED_B, 0);
-
+        }
         
         
-     if (vrx_value/32 < 124 && vrx_value/32 > 1){
+     if (vrx_value/32 < 121 && vrx_value/32 > 7){
        box_x = (uint16_t)vrx_value/32 ;}
-    if (vry_value/64 < 60 && vry_value/64 > 1){
-        box_y = 64 - (uint16_t)vry_value/64;}
+    if (vry_value/64 <61  && vry_value/64 > 7){
+        box_y = 64 -(uint16_t)vry_value/64;}
 
         // Atualiza display
         ssd1306_fill(&oled, !cor);
-        ssd1306_rect(&oled, box_y-4, box_x-4, 8, 8,cor,cor);
+        ssd1306_rect(&oled, box_y, box_x, 8, 8,cor,cor);
         ssd1306_rect(&oled, 3, 3, 122, 58, cor, !cor); // Desenha um retângulo
         ssd1306_send_data(&oled);
+
+       // printf("box_x: %d, box_y: %d\n", box_x, box_y);
 
         sleep_ms(100);  
     }
