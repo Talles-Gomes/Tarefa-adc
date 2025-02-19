@@ -10,7 +10,7 @@
 #define LED_R 13 
 #define LED_B 12 
 #define LED_G 11  
-#define margem 250
+#define margem 200
 #define botA 5
 #define botJ 22
 
@@ -20,6 +20,10 @@
 bool hab = true;
 uint16_t vrx_value = 2048;
 uint16_t vry_value = 2048;
+int retx = 122 ;
+int rety = 58;
+int larg = 3;
+int a=0;
 
 static void gpio_irq_handler(uint gpio,uint32_t events);
 static volatile uint32_t last_time = 0;
@@ -32,18 +36,37 @@ void gpio_irq_handler(uint gpio,uint32_t events)
             last_time = current_time;
             if(gpio == 5){
                 hab = !hab;
-                gpio_put(LED_R, false);
-                gpio_put(LED_B, false);
+                pwm_set_gpio_level(LED_B, 0);
+                pwm_set_gpio_level(LED_R, 0);
             }if (gpio == 22){
-                gpio_put(LED_G, !gpio_get(LED_G));
-                    
+                gpio_put(LED_G, !gpio_get(LED_G)); 
+                switch (a){
+                case 0: 
+                    retx = 122 ;
+                    rety = 58;
+                    larg = 3;
+                    a++;
+                break;
+                case 1: 
+                    retx = 112 ;
+                    rety = 48;
+                    larg = 8;
+                    a++;
+                break;
+                case 2: 
+                    retx = 126 ;
+                    rety = 62;
+                    larg = 1;
+                    a=0;
+                break;
+                }
             }
         }
 
     }
 
 ssd1306_t oled;
-const uint16_t WRAP_PERIOD = 62500; //valor máximo do contador - WRAP
+const uint16_t WRAP_PERIOD = 65.535; //valor máximo do contador - WRAP
 bool cor = true;
 
 int main() {
@@ -74,13 +97,16 @@ int main() {
     int box_x = 60 ;
     int box_y = 28;
 
-    gpio_init(botA);
+    gpio_init(botA);// declaração dos botões
     gpio_set_dir(botA,GPIO_IN);
     gpio_pull_up(botA);
 
     gpio_init(botJ);
     gpio_set_dir(botJ,GPIO_IN);
     gpio_pull_up(botJ);
+
+    gpio_init(LED_G);
+    gpio_set_dir(LED_G, GPIO_OUT);
 
     gpio_set_irq_enabled_with_callback(botA,GPIO_IRQ_EDGE_FALL,true, &gpio_irq_handler);
     gpio_set_irq_enabled_with_callback(botJ,GPIO_IRQ_EDGE_FALL,true, &gpio_irq_handler);
@@ -114,10 +140,10 @@ int main() {
         // Atualiza display
         ssd1306_fill(&oled, !cor);
         ssd1306_rect(&oled, box_y, box_x, 8, 8,cor,cor);
-        ssd1306_rect(&oled, 3, 3, 122, 58, cor, !cor); // Desenha um retângulo
+        ssd1306_rect(&oled, larg, larg, retx, rety, cor, !cor); // Desenha um retângulo
         ssd1306_send_data(&oled);
 
-       // printf("box_x: %d, box_y: %d\n", box_x, box_y);
+        printf("vrx_value: %d, vry_value: %d\n", vrx_value, vry_value);
 
         sleep_ms(100);  
     }
